@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>きくメモ</title>
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="きくメモ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Old+Mincho:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column on phones; transcript and summary side by side on wide screens, record bar pinned to the bottom */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --fg: #1d2622; --muted: #5f6d67; --line: #d8dfdb;
+  --accent: #1f6f5c; --accent-ink: #ffffff; --rec: #c8372d; --soft: #e6efeb; --warn: #8a5a00;
+  --font-display: "Zen Old Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121816; --surface: #1a2220; --fg: #e4ebe8; --muted: #9aa9a3; --line: #2c3834;
+    --accent: #5cc0a3; --accent-ink: #0d1412; --rec: #ff6b5e; --soft: #1f2d29; --warn: #f0b552; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+html { padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+.wrap {
+  max-width: 1100px; margin: 0 auto;
+  padding-inline: 16px; padding-block: 16px 150px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; }
+/* the logo artwork is drawn for a white ground, so it sits on its own white chip in both themes */
+.logo { height: 34px; width: auto; background: #fff; padding: 4px 8px; border-radius: 6px; }
+h1 { font-family: var(--font-display); font-size: 1.6rem; margin: 0; letter-spacing: .04em; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 820px) { .grid { grid-template-columns: 1fr 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; }
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+.panel-head h2 { font-size: .8rem; letter-spacing: .12em; margin: 0; color: var(--muted); font-weight: 700; }
+.meta { font-family: var(--font-mono); font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+textarea {
+  width: 100%; min-height: 42vh; resize: vertical; border: 0; outline: none; background: transparent;
+  color: var(--fg); font: inherit; padding: 14px;
+}
+textarea:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 0 0 10px 10px; }
+.interim { color: var(--muted); padding: 0 14px 12px; font-size: .9rem; min-height: 1.4em; }
+.summary { padding: 14px; min-height: 42vh; overflow-wrap: anywhere; }
+.summary h3 { font-size: 1rem; margin: .6em 0 .2em; }
+.summary h3:first-child { margin-top: 0; }
+.summary ul { margin: .2em 0 .6em; padding-left: 1.2em; }
+.summary p { margin: .3em 0; }
+.summary .empty { color: var(--muted); }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+select, button {
+  font: inherit; font-size: .85rem; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); padding: 6px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+button:disabled { opacity: .5; cursor: default; }
+label.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); cursor: pointer; }
+.status { font-size: .8rem; color: var(--muted); padding: 8px 14px; border-top: 1px solid var(--line); min-height: 1.6em; }
+.hint { background: var(--soft); border-radius: 10px; padding: 12px 14px; font-size: .88rem; }
+.hint b { color: var(--accent); }
+.hint.warn b { color: var(--warn); }
+
+.form { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: .78rem; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+.field input {
+  font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+a.btn {
+  display: inline-block; font-size: .85rem; border-radius: 8px; padding: 6px 12px; text-decoration: none;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 700;
+}
+a.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { margin: 0; font-size: .8rem; color: var(--muted); }
+
+.bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+}
+.rec-btn {
+  display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; padding: 10px 22px;
+  font-size: 1rem; font-weight: 700; background: var(--rec); color: #fff; border-color: var(--rec);
+}
+.rec-btn .dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+.rec-btn.on .dot { border-radius: 2px; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .rec-btn.on .dot { animation: none; } }
+.timer { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <img class="logo" src="icons/faine-logo.png" alt="Faine" width="242" height="70">
+      <h1>きくメモ</h1>
+    </div>
+    <button id="openSettings" type="button">設定</button>
+  </header>
+
+  <div class="hint warn" id="needKey" hidden>
+    <b>最初に設定が必要です：</b>右上の「設定」を押し、ClaudeのAPIキーを入力してください。
+  </div>
+  <div class="hint" id="hint">
+    <b>使い方：</b>下の「録音開始」を押して話すと、文字起こしされ、話の区切りごとに要約が更新されます。録音ボタンが使えない場合は、文字起こし欄をタップしてキーボードの<b>マイクボタン</b>で話してください。
+  </div>
+
+  <section class="panel" id="settings" aria-labelledby="set-title" hidden>
+    <div class="panel-head"><h2 id="set-title">設定</h2></div>
+    <form class="form" id="settingsForm" novalidate>
+      <div class="field">
+        <label for="apiKey">Claude APIキー</label>
+        <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+      </div>
+      <p class="note">キーはこの端末の中にだけ保存され、Anthropic（Claudeの提供元）への通信にだけ使われます。キーは console.anthropic.com で発行できます。共用の端末では保存しないでください。</p>
+      <div class="controls">
+        <button class="primary" type="submit">保存</button>
+        <button id="testKey" type="button">接続テスト</button>
+        <button id="deleteKey" type="button">キーを削除</button>
+      </div>
+      <p class="note" id="settingsStatus" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="t-title">
+      <div class="panel-head">
+        <h2 id="t-title">文字起こし</h2>
+        <div class="controls">
+          <span class="meta" id="charCount">0字</span>
+          <button id="polish" type="button">Claudeで整える</button>
+          <button id="undoP" type="button" hidden>元に戻す</button>
+          <button id="copyT" type="button">コピー</button>
+          <button id="clearT" type="button">クリア</button>
+        </div>
+      </div>
+      <textarea id="transcript" placeholder="「録音開始」を押すか、ここをタップしてキーボードのマイクで話してください"></textarea>
+      <div class="interim" id="interim" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="s-title">
+      <div class="panel-head">
+        <h2 id="s-title">要約</h2>
+        <div class="controls">
+          <select id="style" aria-label="要約の形式">
+            <option value="points">要点</option>
+            <option value="minutes">議事録</option>
+            <option value="short">3行まとめ</option>
+          </select>
+          <button id="summarize" class="primary" type="button">要約する</button>
+          <button id="stopS" type="button" hidden>止める</button>
+          <button id="copyS" type="button">コピー</button>
+        </div>
+      </div>
+      <div class="summary" id="summary" aria-live="polite"></div>
+      <div class="status" id="status"></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="m-title">
+    <div class="panel-head"><h2 id="m-title">メールで送る</h2></div>
+    <form class="form" id="mailForm" novalidate>
+      <div class="field">
+        <label for="mailTo">宛先</label>
+        <input id="mailTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com（複数はカンマ区切り）">
+      </div>
+      <div class="field">
+        <label for="mailSubject">件名</label>
+        <input id="mailSubject" type="text">
+      </div>
+      <label class="toggle"><input type="checkbox" id="mailIncT" checked> 文字起こし全文も入れる</label>
+      <div class="controls">
+        <a class="btn" id="mailOpen" href="#">メールアプリで作成</a>
+        <button id="mailCopy" type="button">件名と本文をコピー</button>
+      </div>
+      <p class="note">宛先・件名・本文が入った新規メールが開きます。送信はメールアプリで行ってください。</p>
+    </form>
+  </section>
+</div>
+
+<div class="bar">
+  <button id="recBtn" class="rec-btn" type="button"><span class="dot"></span><span id="recLabel">録音開始</span></button>
+  <span class="timer" id="timer">00:00</span>
+  <label class="toggle"><input type="checkbox" id="auto" checked> 話しながら自動要約</label>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const ta = $("transcript"), sumEl = $("summary"), statusEl = $("status");
+  const STORE = "kikumemo-app-v1", KEY_STORE = "kikumemo-api-key";
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  let state = { transcript: "", summary: "" };
+  try { const s = JSON.parse(store.get(STORE)); if (s) state = { ...state, ...s }; } catch {}
+  const save = () => store.set(STORE, JSON.stringify(state));
+  ta.value = state.transcript || "";
+
+  // ---------- Claude API (Messages API, streamed, called directly from the browser) ----------
+  const MODEL = "claude-opus-5-5";
+  const apiKey = () => store.get(KEY_STORE) || "";
+
+  class ClaudeError extends Error {
+    constructor(code, message, text) { super(message); this.code = code; this.text = text; }
+  }
+
+  async function callClaude(prompt, { effort = "medium", maxTokens = 16000, onText, signal } = {}) {
+    const key = apiKey();
+    if (!key) throw new ClaudeError("no_key", "APIキーが未設定です");
+    let res;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", signal,
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
+        },
+        body: JSON.stringify({
+          model: MODEL, max_tokens: maxTokens, stream: true,
+          output_config: { effort },
+          fallbacks: "default",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+    } catch (e) {
+      if (e.name === "AbortError") throw new ClaudeError("cancelled", "止めました");
+      throw new ClaudeError("network", "通信できませんでした");
+    }
+    if (!res.ok) {
+      let msg = ""; try { msg = (await res.json())?.error?.message || ""; } catch {}
+      const code = res.status === 401 ? "bad_key" : res.status === 403 ? "forbidden"
+        : res.status === 429 ? "rate_limited" : res.status === 529 || res.status >= 500 ? "overloaded"
+        : res.status === 400 && /credit|balance/i.test(msg) ? "no_credit" : "bad_request";
+      throw new ClaudeError(code, msg);
+    }
+    // Parse the Server-Sent Events stream
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "", text = "", stopReason = null;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()).join("");
+          if (!data) continue;
+          let ev; try { ev = JSON.parse(data); } catch { continue; }
+          if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
+            text += ev.delta.text; onText?.(text);
+          } else if (ev.type === "message_delta" && ev.delta?.stop_reason) {
+            stopReason = ev.delta.stop_reason;
+          } else if (ev.type === "error") {
+            throw new ClaudeError(ev.error?.type === "overloaded_error" ? "overloaded" : "stream_error", ev.error?.message || "", text);
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof ClaudeError) throw e;
+      if (e.name === "AbortError") throw new ClaudeError("cancelled", "止めました", text);
+      throw new ClaudeError("network", "通信が途切れました", text);
+    }
+    if (stopReason === "refusal") throw new ClaudeError("refused", "この内容は処理できませんでした");
+    if (!text.trim()) throw new ClaudeError("empty", "応答が空でした");
+    return { text, truncated: stopReason === "max_tokens" };
+  }
+
+  const ERR = {
+    no_key: "APIキーが設定されていません。右上の「設定」から入力してください。",
+    bad_key: "APIキーが正しくありません。「設定」でキーを確認してください。",
+    forbidden: "このAPIキーでは利用できません。キーの権限を確認してください。",
+    no_credit: "APIの利用残高が足りません。console.anthropic.com で残高を確認してください。",
+    rate_limited: "短時間に使いすぎました。少し待ってからもう一度押してください。",
+    overloaded: "Claudeが混み合っています。少し待ってからもう一度押してください。",
+    refused: "この内容は処理できませんでした。",
+    network: "通信できませんでした。電波の状態を確認して、もう一度押してください。",
+  };
+  const errText = e => ERR[e?.code] || "うまくいきませんでした。もう一度押してください。";
+
+  // ---------- settings ----------
+  function refreshKeyUI() {
+    const has = !!apiKey();
+    $("needKey").hidden = has;
+    $("apiKey").value = has ? apiKey() : "";
+  }
+  $("openSettings").onclick = () => { $("settings").hidden = !$("settings").hidden; if (!$("settings").hidden) $("apiKey").focus(); };
+  $("settingsForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = $("apiKey").value.trim();
+    if (!v) { $("settingsStatus").textContent = "APIキーを入力してください。"; return; }
+    store.set(KEY_STORE, v); refreshKeyUI();
+    $("settingsStatus").textContent = "保存しました。";
+  });
+  $("deleteKey").onclick = () => { store.del(KEY_STORE); refreshKeyUI(); $("settingsStatus").textContent = "この端末からキーを削除しました。"; };
+  $("testKey").onclick = async () => {
+    const v = $("apiKey").value.trim(); if (v) store.set(KEY_STORE, v); refreshKeyUI();
+    $("settingsStatus").textContent = "確認しています…";
+    try { await callClaude("「OK」とだけ返してください。", { effort: "low", maxTokens: 512 }); $("settingsStatus").textContent = "接続できました。"; }
+    catch (e) { $("settingsStatus").textContent = errText(e); }
+  };
+  refreshKeyUI();
+  if (!apiKey()) $("settings").hidden = false;
+
+  // ---------- summary rendering (small markdown subset, built with textContent) ----------
+  const strip = s => s.replace(/\*\*(.+?)\*\*/g, "$1");
+  function render(md) {
+    sumEl.replaceChildren();
+    if (!md.trim()) {
+      const p = document.createElement("p"); p.className = "empty";
+      p.textContent = "文字起こしが入ると、ここに要約が表示されます。";
+      sumEl.append(p); return;
+    }
+    let ul = null;
+    for (const raw of md.split("\n")) {
+      const line = raw.trim();
+      if (!line) { ul = null; continue; }
+      const h = line.match(/^#{1,6}\s+(.*)/);
+      const li = line.match(/^(?:[-*・]|\d+[.)])\s+(.*)/);
+      if (h) { ul = null; const e = document.createElement("h3"); e.textContent = strip(h[1]); sumEl.append(e); }
+      else if (li) {
+        if (!ul) { ul = document.createElement("ul"); sumEl.append(ul); }
+        const e = document.createElement("li"); e.textContent = strip(li[1]); ul.append(e);
+      } else { ul = null; const e = document.createElement("p"); e.textContent = strip(line); sumEl.append(e); }
+    }
+  }
+  const updateCount = () => { $("charCount").textContent = ta.value.length.toLocaleString() + "字"; };
+  render(state.summary || ""); updateCount();
+
+  // ---------- summarize ----------
+  const STYLES = {
+    points: "重要なポイントを「### 要点」の見出しの下に箇条書き（各1行）でまとめ、決定事項やToDoがあれば「### 次のアクション」に箇条書きで書いてください。",
+    minutes: "議事録形式で、「### 概要」（1〜2文）「### 決定事項」「### 課題・懸念」「### 次のアクション（担当・期限があれば併記）」の見出しを使い、該当がない見出しは省いてください。",
+    short: "全体を3行の箇条書きでまとめてください。",
+  };
+  let ctl = null, busy = false, lastLen = ta.value.length, idleTimer = null;
+
+  async function summarize(manual) {
+    const text = ta.value.trim();
+    if (!text || busy) return;
+    if (!apiKey()) { statusEl.textContent = ERR.no_key; return; }
+    busy = true; lastLen = ta.value.length;
+    ctl = new AbortController();
+    $("summarize").disabled = true; $("stopS").hidden = false;
+    statusEl.textContent = "要約しています…";
+    const prompt = "以下は音声の文字起こしです（誤変換や言い淀みを含む場合があります）。日本語で要約してください。"
+      + STYLES[$("style").value]
+      + " 見出しは「### 」、箇条書きは「- 」で始め、前置きや結びの言葉は書かないでください。\n\n<文字起こし>\n"
+      + text + "\n</文字起こし>";
+    try {
+      const { text: out, truncated } = await callClaude(prompt, {
+        effort: manual ? "high" : "low", signal: ctl.signal,
+        onText: t => { state.summary = t; render(t); },
+      });
+      state.summary = out; render(out); save();
+      statusEl.textContent = (truncated ? "途中で切れました。" : "") + "更新 "
+        + new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    } catch (e) {
+      if (e.code === "refused") { state.summary = ""; render(""); }
+      else if (e.text) { state.summary = e.text; render(e.text); }
+      statusEl.textContent = e.code === "cancelled" ? "要約を止めました。" : errText(e);
+    } finally {
+      busy = false; $("summarize").disabled = false; $("stopS").hidden = true;
+    }
+  }
+  function scheduleAuto() {
+    clearTimeout(idleTimer);
+    if (!$("auto").checked) return;
+    idleTimer = setTimeout(() => { if (ta.value.length - lastLen >= 120) summarize(false); }, 6000);
+  }
+
+  ta.addEventListener("input", () => { state.transcript = ta.value; updateCount(); save(); scheduleAuto(); });
+  $("summarize").onclick = () => summarize(true);
+  $("stopS").onclick = () => ctl?.abort();
+  $("style").onchange = () => { if (ta.value.trim()) summarize(true); };
+  $("clearT").onclick = () => {
+    ta.value = ""; state.transcript = ""; state.summary = ""; lastLen = 0;
+    render(""); updateCount(); save(); statusEl.textContent = "";
+  };
+
+  // ---------- polish transcript ----------
+  let beforePolish = null;
+  $("polish").onclick = async () => {
+    const text = ta.value.trim();
+    if (!text || busy) return;
+    if (!apiKey()) { statusEl.textContent = ERR.no_key; return; }
+    busy = true; $("polish").disabled = true; $("polish").textContent = "整えています…";
+    const original = ta.value; let ok = false;
+    try {
+      const { text: out } = await callClaude(
+        "以下は音声認識による日本語の文字起こしです。意味を変えずに読みやすく整えてください。"
+        + "規則: 誤変換・同音異義語の誤りを文脈から直す／「えー」「あの」等のフィラーや言い直しを除く／句読点を補い、話題の切れ目で段落を分ける／"
+        + "話者が明確に変わる場合のみ「A：」「B：」のように示す／内容の追加・省略・要約はしない／聞き取れない部分は推測せず〔不明〕とする。"
+        + "整えた本文だけを出力してください。\n\n<文字起こし>\n" + text + "\n</文字起こし>",
+        { effort: "high", maxTokens: 64000 });
+      beforePolish = original; ok = true;
+      ta.value = out.trim(); state.transcript = ta.value; updateCount(); save();
+      $("undoP").hidden = false; statusEl.textContent = "文字起こしを整えました。";
+    } catch (e) {
+      statusEl.textContent = e.code === "cancelled" ? "" : errText(e);
+    } finally {
+      busy = false; $("polish").disabled = false; $("polish").textContent = "Claudeで整える";
+    }
+    if (ok) { lastLen = 0; summarize(false); }
+  };
+  $("undoP").onclick = () => {
+    if (beforePolish == null) return;
+    ta.value = beforePolish; state.transcript = ta.value; beforePolish = null;
+    $("undoP").hidden = true; updateCount(); save(); statusEl.textContent = "整える前に戻しました。";
+  };
+
+  // ---------- copy ----------
+  async function copyText(text, btn, label) {
+    try { await navigator.clipboard.writeText(text); btn.textContent = "コピー済み"; }
+    catch { btn.textContent = "コピー不可"; }
+    setTimeout(() => btn.textContent = label, 1500);
+  }
+  $("copyT").onclick = e => copyText(ta.value, e.currentTarget, "コピー");
+  $("copyS").onclick = e => copyText(sumEl.innerText, e.currentTarget, "コピー");
+
+  // ---------- email ----------
+  const today = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
+  $("mailSubject").value = state.mailSubject || "【メモ】" + today + " 要約";
+  $("mailTo").value = state.mailTo || "";
+  function mailBody() {
+    let b = "お疲れさまです。\n" + today + "の内容の要約を共有します。\n\n■ 要約\n" + (state.summary.trim() ? sumEl.innerText.trim() : "（要約なし）");
+    if ($("mailIncT").checked && ta.value.trim()) b += "\n\n■ 文字起こし\n" + ta.value.trim();
+    return b;
+  }
+  function updateMailLink() {
+    const to = $("mailTo").value.split(/[,、\s]+/).filter(Boolean).map(encodeURIComponent).join(",");
+    let body = mailBody();
+    const MAX = 1800; // some mail apps reject very long mailto links
+    if (body.length > MAX) body = body.slice(0, MAX) + "\n\n（長いため省略しました。全文は「件名と本文をコピー」で貼り付けてください）";
+    $("mailOpen").href = "mailto:" + to + "?subject=" + encodeURIComponent($("mailSubject").value) + "&body=" + encodeURIComponent(body);
+  }
+  $("mailForm").addEventListener("submit", e => e.preventDefault());
+  for (const id of ["mailTo", "mailSubject"]) $(id).addEventListener("input", () => {
+    state.mailTo = $("mailTo").value; state.mailSubject = $("mailSubject").value; save();
+  });
+  for (const ev of ["pointerdown", "focus", "click"]) $("mailOpen").addEventListener(ev, updateMailLink);
+  $("mailCopy").onclick = e => copyText("件名：" + $("mailSubject").value + "\n\n" + mailBody(), e.currentTarget, "件名と本文をコピー");
+
+  // ---------- one-tap continuous speech recognition ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recBtn = $("recBtn");
+  let rec = null, on = false, startedAt = 0, tick = null, wakeLock = null;
+
+  function stopRec() {
+    on = false; recBtn.classList.remove("on"); $("recLabel").textContent = "録音開始";
+    clearInterval(tick); try { rec?.stop(); } catch {}
+    $("interim").textContent = "";
+    wakeLock?.release?.().catch(() => {}); wakeLock = null;
+  }
+  function micUnavailable(msg) {
+    stopRec();
+    $("interim").textContent = msg || "この端末ではボタンでの録音が使えません。文字起こし欄をタップし、キーボードのマイクボタンで話してください。";
+  }
+  recBtn.onclick = async () => {
+    if (!SR) return micUnavailable();
+    if (on) { stopRec(); if (ta.value.length > lastLen) summarize(false); return; }
+    rec = new SR(); rec.lang = "ja-JP"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = ev => {
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        if (r.isFinal) {
+          ta.value += (ta.value && !/[。、！？\n]$/.test(ta.value) ? "。" : "") + r[0].transcript.trim();
+          state.transcript = ta.value; updateCount(); save(); scheduleAuto();
+          ta.scrollTop = ta.scrollHeight;
+        } else interim += r[0].transcript;
+      }
+      $("interim").textContent = interim;
+    };
+    rec.onerror = ev => {
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed")
+        micUnavailable("マイクの使用が許可されていません。端末の設定でブラウザのマイクを許可してください。");
+      else if (ev.error === "audio-capture") micUnavailable("マイクが見つかりません。");
+    };
+    // browsers end recognition after a pause; restart while recording
+    rec.onend = () => { if (on) { try { rec.start(); } catch { stopRec(); } } };
+    try { rec.start(); } catch { return micUnavailable(); }
+    on = true; recBtn.classList.add("on"); $("recLabel").textContent = "停止";
+    startedAt = Date.now();
+    tick = setInterval(() => {
+      const s = Math.floor((Date.now() - startedAt) / 1000);
+      $("timer").textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    }, 500);
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  };
+
+  // ---------- offline shell ----------
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
