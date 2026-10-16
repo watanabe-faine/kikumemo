@@ -1,5 +1,5 @@
 // Keeps the app shell available offline. API calls to Claude always go to the network.
-const CACHE = "kikumemo-v1";
+const CACHE = "kikumemo-v2";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/faine-logo.png"];
 
 self.addEventListener("install", e => {
